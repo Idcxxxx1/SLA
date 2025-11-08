@@ -12,8 +12,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
+      justify-content: flex-start;
+      padding: 20px;
       margin: 0;
     }
 
@@ -22,7 +22,7 @@
       background: linear-gradient(90deg, #3a9bdc, #6dc1ff);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 6px;
+      margin-bottom: 10px;
     }
 
     #top-bar {
@@ -54,10 +54,34 @@
       box-shadow: 0 0 8px rgba(61,130,255,0.4);
     }
 
+    #game-area {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 20px;
+    }
+
     canvas {
       border: 2px solid rgba(255,255,255,0.1);
       background: #111722;
       box-shadow: 0 0 25px rgba(0,0,0,0.7);
+    }
+
+    #leaderboard {
+      width: 150px;
+      text-align: left;
+      color: #9aa4b2;
+      font-size: 14px;
+    }
+
+    #leaderboard h2 {
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+
+    #leaderboard ol {
+      padding-left: 20px;
+      margin: 0;
     }
 
     footer {
@@ -65,36 +89,16 @@
       font-size: 13px;
       color: #9aa4b2;
     }
-
-#game-area {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-}
-
-#leaderboard {
-  width: 150px;
-  text-align: left;
-}
-
-#leaderboard h2 {
-  font-size: 16px;
-  margin-bottom: 4px;
-}
-
-#leaderboard ol {
-  padding-left: 20px;
-  color: #9aa4b2;
-  font-size: 14px;
-}
-
   </style>
 </head>
 <body>
   <h1>Tetris</h1>
+
   <div id="top-bar">
     <div id="score">Score: 0</div>
+    <button id="start-btn">▶ Start</button>
   </div>
+
   <div id="game-area">
     <canvas id="game" width="240" height="400"></canvas>
     <div id="leaderboard">
@@ -109,15 +113,13 @@
     const canvas = document.getElementById('game');
     const context = canvas.getContext('2d');
     const scoreElement = document.getElementById('score');
+    const startBtn = document.getElementById('start-btn');
+    const leaderboardList = document.getElementById('leaderboard-list');
 
     const ROWS = 20;
     const COLS = 12;
     const blockWidth = canvas.width / COLS;
     const blockHeight = canvas.height / ROWS;
-
-    let dropCounter = 0;
-    let dropInterval = 200;
-    let lastTime = 0;
 
     const colors = [
       null,
@@ -125,20 +127,8 @@
       '#FF8E0D', '#FFE138', '#3877FF'
     ];
 
-    function updateLeaderboard() {
-    const savedScores = JSON.parse(localStorage.getItem('tetrisHighScores')) || {};
-    const sortedScores = Object.entries(savedScores)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5); // Top 5
-
-    const leaderboardList = document.getElementById('leaderboard-list');
-    leaderboardList.innerHTML = ''; // leegmaken
-    sortedScores.forEach(([user, score]) => {
-        const li = document.createElement('li');
-        li.textContent = `${user}: ${score}`;
-        leaderboardList.appendChild(li);
-    });
-}
+    let arena, player, dropCounter, lastTime, dropInterval;
+    let gameActive = false;
 
     function createMatrix(w, h) {
       const matrix = [];
@@ -158,61 +148,62 @@
       }
     }
 
-    const arena = createMatrix(COLS, ROWS);
-    const player = { pos: {x:0,y:0}, matrix: null, score: 0 };
-
     function collide(arena, player) {
-      const [m, o] = [player.matrix, player.pos];
-      for (let y=0;y<m.length;y++) {
-        for (let x=0;x<m[y].length;x++) {
-          if (m[y][x]!==0 && (arena[y+o.y] && arena[y+o.y][x+o.x])!==0) return true;
+      const [m,o] = [player.matrix, player.pos];
+      for(let y=0;y<m.length;y++){
+        for(let x=0;x<m[y].length;x++){
+          if(m[y][x]!==0 && (arena[y+o.y] && arena[y+o.y][x+o.x])!==0) return true;
         }
       }
       return false;
     }
 
-    function merge(arena, player) {
-      player.matrix.forEach((row,y)=>row.forEach((value,x)=>{if(value!==0)arena[y+player.pos.y][x+player.pos.x]=value;}));
+    function merge(arena, player){
+      player.matrix.forEach((row,y)=>row.forEach((value,x)=>{
+        if(value!==0) arena[y+player.pos.y][x+player.pos.x]=value;
+      }));
     }
 
-    function rotate(matrix, dir) {
-      for (let y=0;y<matrix.length;y++) {
-        for (let x=0;x<y;x++) [matrix[x][y],matrix[y][x]]=[matrix[y][x],matrix[x][y]];
+    function rotate(matrix, dir){
+      for(let y=0;y<matrix.length;y++){
+        for(let x=0;x<y;x++) [matrix[x][y],matrix[y][x]]=[matrix[y][x],matrix[x][y]];
       }
       if(dir>0) matrix.forEach(row=>row.reverse());
       else matrix.reverse();
     }
 
-    function playerReset() {
+    function playerReset(){
       const pieces = 'TJLOSZI';
       player.matrix = createPiece(pieces[Math.floor(Math.random()*pieces.length)]);
-      player.pos.y=0;
-      player.pos.x=(COLS/2|0)-(player.matrix[0].length/2|0);
+      player.pos.y = 0;
+      player.pos.x = (COLS/2|0)-(player.matrix[0].length/2|0);
       if(collide(arena,player)){
         arena.forEach(row=>row.fill(0));
-        player.score=0;
-        updateScore();
-        updateLeaderboard();
+        gameActive=false;
+        startBtn.style.display='inline-block';
+        saveScore();
       }
     }
 
-    function arenaSweep() {
+    function arenaSweep(){
+      let rowCount=0;
       outer: for(let y=arena.length-1;y>=0;y--){
         for(let x=0;x<arena[y].length;x++){
           if(arena[y][x]===0) continue outer;
         }
-        const row = arena.splice(y,1)[0].fill(0);
+        const row=arena.splice(y,1)[0].fill(0);
         arena.unshift(row);
-        player.score+=400;
+        rowCount++;
       }
+      if(rowCount>0) player.score += rowCount*100;
     }
 
-    function playerMove(dir) {
+    function playerMove(dir){
       player.pos.x+=dir;
       if(collide(arena,player)) player.pos.x-=dir;
     }
 
-    function playerDrop() {
+    function playerDrop(){
       player.pos.y++;
       if(collide(arena,player)){
         player.pos.y--;
@@ -253,19 +244,43 @@
       drawMatrix(player.matrix,player.pos);
     }
 
-    function updateScore(){scoreElement.textContent='Score: '+player.score;}
+    function updateScore(){
+      scoreElement.textContent='Score: '+player.score;
+    }
 
-    function update(time=0){
-      const deltaTime=time-lastTime;
-      lastTime=time;
-      dropCounter+=deltaTime;
-      if(dropCounter>dropInterval) playerDrop();
-      draw();
-      requestAnimationFrame(update);
+    function saveScore(){
+      const savedScores = JSON.parse(localStorage.getItem('tetrisHighScores')) || {};
+      const user = 'Speler'; // Je kan hier username vragen als input
+      savedScores[user] = Math.max(savedScores[user]||0, player.score);
+      localStorage.setItem('tetrisHighScores', JSON.stringify(savedScores));
       updateLeaderboard();
     }
 
+    function updateLeaderboard(){
+      const savedScores = JSON.parse(localStorage.getItem('tetrisHighScores')) || {};
+      const sortedScores = Object.entries(savedScores)
+        .sort((a,b)=>b[1]-a[1])
+        .slice(0,5);
+      leaderboardList.innerHTML='';
+      sortedScores.forEach(([user,score])=>{
+        const li=document.createElement('li');
+        li.textContent=`${user}: ${score}`;
+        leaderboardList.appendChild(li);
+      });
+    }
+
+    function update(time=0){
+      if(!gameActive) return;
+      const deltaTime = time-lastTime;
+      lastTime = time;
+      dropCounter += deltaTime;
+      if(dropCounter>dropInterval) playerDrop();
+      draw();
+      requestAnimationFrame(update);
+    }
+
     document.addEventListener('keydown', event=>{
+      if(!gameActive) return;
       switch(event.key){
         case 'ArrowLeft':playerMove(-1);break;
         case 'ArrowRight':playerMove(1);break;
@@ -274,17 +289,20 @@
       }
     });
 
-    playerReset();
-    updateScore();
-    update();
+    startBtn.addEventListener('click', ()=>{
+      arena=createMatrix(COLS,ROWS);
+      player={pos:{x:0,y:0},matrix:null,score:0};
+      dropCounter=0;
+      dropInterval=500;
+      lastTime=0;
+      gameActive=true;
+      startBtn.style.display='none';
+      playerReset();
+      updateScore();
+      update();
+    });
+
+    updateLeaderboard();
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
