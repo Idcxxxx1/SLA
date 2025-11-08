@@ -288,5 +288,16 @@
     updateScore();
     update();
   </script>
+    <script>
+    if (!document.cookie.includes('auth_user=')) {
+      window.location.href = '/index.html';
+    }
+
+    document.getElementById('logout').addEventListener('click', () => {
+      document.cookie = 'auth_user=; Path=/; Max-Age=0';
+      window.location.href = '/index.html';
+    });
+  </script>
 </body>
 </html>
+
