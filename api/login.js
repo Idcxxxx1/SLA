@@ -1,8 +1,12 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
+
   const { username, password } = req.body;
-  if (username === 'admin' && password === 'test123') {
-    res.setHeader('Set-Cookie', `auth_user=${username}; Path=/; HttpOnly; Max-Age=86400; SameSite=Lax`);
+  const validUser = process.env.LOGIN_USER;
+  const validPass = process.env.LOGIN_PASS;
+
+  if (username === validUser && password === validPass) {
+    res.setHeader('Set-Cookie', `auth_user=${username}; Path=/; HttpOnly; SameSite=Lax`);
     return res.status(200).json({ success: true });
   }
 
